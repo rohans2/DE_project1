@@ -3,6 +3,8 @@ import glob
 import os
 import re
 import spacy
+import nltk
+nltk.download('wordnet')
 from nltk.corpus import wordnet
 import sys
 
