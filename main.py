@@ -5,6 +5,10 @@ import os
 from glob import glob
 import sys
 import spacy.cli
+import nltk
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+from nltk.corpus import wordnet
 
 # Load SpaCy model for English language
 nlp = spacy.load("en_core_web_sm")
@@ -30,16 +34,28 @@ def redact_phone_numbers(text):
     stats = [f"Censored PHONE: {match}" for match in matches]
     return redacted_text, stats
 
+def get_related_words(concept):
+    """Fetch related words for a given concept using WordNet."""
+    synonyms = set()
+    for syn in wordnet.synsets(concept):
+        for lemma in syn.lemmas():
+            synonyms.add(lemma.name().lower().replace('_', ' '))
+    return synonyms
+
+
 # Helper function for censoring concept-based sentences
 def redact_concept_sentences(doc, concepts):
     redacted_text = doc.text
     stats = []
     
+    # for sent in doc.sents:
+    #     if any(concept.lower() in sent.text.lower() for concept in concepts):
+    #         redacted_text = redacted_text.replace(sent.text, '█' * len(sent.text))
+    #         stats.append(f"Censored CONCEPT: {sent.text.strip()}")
     for sent in doc.sents:
-        if any(concept.lower() in sent.text.lower() for concept in concepts):
-            redacted_text = redacted_text.replace(sent.text, '█' * len(sent.text))
+        if any(word in concepts for word in sent.text.lower().split()):
+            redacted_text = redacted_text.replace(sent.text, "█" * len(sent.text))
             stats.append(f"Censored CONCEPT: {sent.text.strip()}")
-    
     return redacted_text, stats
 
 # Function to process each file
@@ -72,7 +88,11 @@ def process_file(file, output_dir, redact_flags, concepts):
     if concepts:
         # Redact concept-based sentences
         doc = nlp(text)  # Re-run SpaCy since text may have changed
-        text, concept_stats = redact_concept_sentences(doc, concepts)
+        concept_words = set()
+        
+        for concept in concepts:
+            concept_words.update(get_related_words(concept))
+        text, concept_stats = redact_concept_sentences(doc, concept_words)
         stats.extend(concept_stats)
 
     # Save the redacted text to a new file
